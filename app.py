@@ -31,7 +31,7 @@ def init_db():
         try:
             with conn.cursor() as cur:
                 cur.execute('''
-                    CREATE TABLE IF NOT EXISTS messages (
+                    CREATE TABLE IF NOT EXISTS chizzy_messages (
                         id SERIAL PRIMARY KEY,
                         name VARCHAR(255) NOT NULL,
                         city VARCHAR(255),
@@ -92,7 +92,7 @@ def handle_messages():
 
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO messages (name, city, message) VALUES (%s, %s, %s) RETURNING *;",
+                    "INSERT INTO chizzy_messages (name, city, message) VALUES (%s, %s, %s) RETURNING *;",
                     (name, city, message)
                 )
                 new_msg = cur.fetchone()
@@ -101,7 +101,7 @@ def handle_messages():
 
         elif request.method == 'GET':
             with conn.cursor() as cur:
-                cur.execute("SELECT * FROM messages ORDER BY created_at DESC;")
+                cur.execute("SELECT * FROM chizzy_messages ORDER BY created_at DESC;")
                 messages = cur.fetchall()
             return jsonify(messages)
     finally:
