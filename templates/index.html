@@ -389,6 +389,21 @@
     text-shadow: 2px 2px 0 var(--deep-burgundy);
   }
 
+  /* ===================== FEATURED VIDEO ===================== */
+  .featured-video-container {
+    max-width: 400px;
+    margin: 0 auto 60px auto;
+    border: 1px solid rgba(201,168,76,0.3);
+    padding: 12px;
+    background: rgba(245,230,208,0.04);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .featured-video {
+    width: 100%;
+    display: block;
+    filter: sepia(10%) contrast(1.05);
+  }
+
   /* ===================== POLAROID GALLERY ===================== */
   #gallery {
     background:
@@ -951,6 +966,12 @@
   <h2 class="section-title">A Life in Frames</h2>
   <div class="gold-rule"><span>✦</span></div>
 
+  <div class="featured-video-container">
+    <video class="featured-video" controls>
+      <source src="/static/photos/Introvid.mp4" type="video/mp4">
+    </video>
+  </div>
+
   <div class="polaroid-wall" id="polaroidWall">
     <!-- Polaroids injected by JS -->
   </div>
@@ -1050,12 +1071,10 @@
 
 <script>
   const captions = [
-    "grandma mode", "big grammar energy", "chef szn", "the main character",
-    "1947 playlist loading", "she just knows", "no caption needed",
-    "the artist at work", "feeding everyone again", "living her film",
-    "too much sauce (in a good way)", "exhibit A", "circa always",
-    "she said what she said", "for the archives", "the vision",
-    "unmatched tbh", "rare footage", "love in action", "the whole vibe"
+    "35mm film", "archive pt. 1", "candid", "unreleased", "golden hour",
+    "classic", "vintage", "outtakes", "on film", "memories",
+    "somewhere", "untitled", "the vision", "rare footage", "b-roll",
+    "director's cut", "behind the scenes", "frame 24", "iso 400", "circa always"
   ];
 
   function makePlaceholder(i) {

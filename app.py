@@ -60,11 +60,12 @@ def get_photos():
 
         # Sort to keep order consistent
         for filename in sorted(os.listdir(PHOTOS_DIR)):
-            # Exclude the background video from the gallery
-            if filename == 'bg-video.mp4':
+            lower_filename = filename.lower()
+            
+            # Exclude both the background video and the featured intro video from the gallery wall
+            if lower_filename in ('bg-video.mp4', 'introvid.mp4'):
                 continue
 
-            lower_filename = filename.lower()
             if lower_filename.endswith(valid_image_extensions):
                 media_files.append({'filename': filename, 'type': 'image'})
             elif lower_filename.endswith(valid_video_extensions):
