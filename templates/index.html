@@ -391,7 +391,7 @@
 
   /* ===================== FEATURED VIDEO ===================== */
   .featured-video-container {
-    max-width: 600px;
+    max-width: 340px;
     margin: 0 auto 60px auto;
     border: 1px solid rgba(201,168,76,0.3);
     padding: 12px;
@@ -400,7 +400,7 @@
   }
   .featured-video {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 9 / 16;
     object-fit: cover;
     display: block;
     filter: sepia(10%) contrast(1.05);
@@ -1281,7 +1281,7 @@
       ${repliesHtml}
       
       <div class="entry-actions">
-        <button class="reaction-btn ${hasReacted}" onclick="reactToMessage(${e.id}, this)" ${reactDisabled}>❤️ <span class="react-count">${e.reactions || 0}</span></button>
+        <button class="reaction-btn ${hasReacted}" onclick="reactToMessage(${e.id}, this)" ${reactDisabled}>❤️${e.reactions ? ` <span class="react-count">${e.reactions}</span>` : ''}</button>
         ${adminActions}
       </div>
       
@@ -1347,7 +1347,14 @@
       const data = await res.json();
       localStorage.setItem(key, '1');
       btn.classList.add('reacted');
-      btn.querySelector('.react-count').textContent = data.reactions;
+      let countEl = btn.querySelector('.react-count');
+      if (!countEl) {
+        countEl = document.createElement('span');
+        countEl.className = 'react-count';
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(countEl);
+      }
+      countEl.textContent = data.reactions;
     } catch (err) {
       console.error('Error reacting:', err);
       btn.disabled = false;

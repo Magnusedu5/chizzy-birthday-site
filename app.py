@@ -1,6 +1,6 @@
 import os
 import requests as req
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, render_template_string
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -103,6 +103,23 @@ with app.app_context():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin():
+    error = None
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'chizzy2001')
+        if password == admin_password:
+            return render_template_string('''
+                <script>
+                  sessionStorage.setItem('chizzy_unlocked', 'true');
+                  window.location.href = '/';
+                </script>
+            ''')
+        error = 'Not quite. Try again.'
+    return render_template('admin.html', error=error)
 
 
 @app.route('/api/photos', methods=['GET'])
