@@ -1248,12 +1248,11 @@
   function renderEntry(e) {
     const el = document.createElement('div');
     el.className = 'entry';
-    el.style.opacity = 0; // For animation
-    
-    const isChizzy = sessionStorage.getItem('chizzy_unlocked') === 'true';
+    el.style.opacity = 0;
+
     const hasReacted = e.id && localStorage.getItem('reacted_' + e.id) ? 'reacted' : '';
     const reactDisabled = !e.id ? 'disabled' : '';
-    
+
     let repliesHtml = '';
     if (e.replies && e.replies.length > 0) {
       e.replies.forEach(r => {
@@ -1265,34 +1264,18 @@
         `;
       });
     }
-    
-    let adminActions = '';
-    if (isChizzy && e.id) {
-      adminActions = `
-        <span class="admin-reply-link" onclick="toggleReplyForm(${e.id})">Reply</span>
-      `;
-    }
-    
+
     el.innerHTML = `
       <div class="entry-name">${e.name}${e.city ? ` · <em style="font-size:0.85rem;color:var(--parchment)">${e.city}</em>` : ''}</div>
       <div class="entry-message">${e.message}</div>
       <div class="entry-date">${e.date}</div>
-      
       ${repliesHtml}
-      
       <div class="entry-actions">
         <button class="reaction-btn ${hasReacted}" onclick="reactToMessage(${e.id}, this)" ${reactDisabled}>❤️${e.reactions ? ` <span class="react-count">${e.reactions}</span>` : ''}</button>
-        ${adminActions}
       </div>
-      
-      ${isChizzy && e.id ? `
-      <div class="inline-reply-form" id="reply-form-${e.id}">
-        <textarea id="reply-input-${e.id}" placeholder="Type your reply, Grandma..."></textarea>
-        <button class="submit-btn" style="padding: 10px 20px; font-size: 0.6rem;" onclick="submitReply(${e.id})"><span>✦ Send Reply</span></button>
-      </div>` : ''}
     `;
     entriesEl.prepend(el);
-    setTimeout(() => el.style.opacity = 1, 10); // Fade in
+    setTimeout(() => el.style.opacity = 1, 10);
   }
 
   async function loadMessages() {
@@ -1373,30 +1356,6 @@
       console.error('Error reacting:', err);
     } finally {
       btn.disabled = false;
-    }
-  }
-
-  function toggleReplyForm(id) {
-    const form = document.getElementById(`reply-form-${id}`);
-    if (form) form.classList.toggle('open');
-  }
-
-  async function submitReply(id) {
-    const input = document.getElementById(`reply-input-${id}`);
-    const content = input && input.value.trim();
-    if (!content) return;
-    try {
-      const res = await fetch(`/api/messages/${id}/replies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
-      });
-      if (!res.ok) throw new Error('Reply failed');
-      input.value = '';
-      toggleReplyForm(id);
-      await loadMessages();
-    } catch (err) {
-      console.error('Error submitting reply:', err);
     }
   }
 

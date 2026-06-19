@@ -1,9 +1,10 @@
 import os
 import requests as req
-from flask import Flask, jsonify, request, render_template, render_template_string
+from flask import Flask, jsonify, request, render_template, session, redirect
 from flask_cors import CORS
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'chizzy-secret-2001')
 CORS(app)
 
 PHOTOS_DIR = os.path.join(app.static_folder, 'photos')
@@ -107,19 +108,19 @@ def index():
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
-    error = None
     if request.method == 'POST':
         password = request.form.get('password', '')
-        admin_password = os.environ.get('ADMIN_PASSWORD', 'chizzy2001')
-        if password == admin_password:
-            return render_template_string('''
-                <script>
-                  sessionStorage.setItem('chizzy_unlocked', 'true');
-                  window.location.href = '/';
-                </script>
-            ''')
-        error = 'Not quite. Try again.'
-    return render_template('admin.html', error=error)
+        if password == os.environ.get('ADMIN_PASSWORD', 'chizzy2001'):
+            session['admin'] = True
+            return redirect('/admin')
+        return render_template('admin.html', logged_in=False, error='Not quite. Try again.')
+    return render_template('admin.html', logged_in=session.get('admin', False))
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin', None)
+    return redirect('/')
 
 
 @app.route('/api/photos', methods=['GET'])

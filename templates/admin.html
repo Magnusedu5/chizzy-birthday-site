@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grandma's Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Special+Elite&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Special+Elite&family=Cormorant+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
     --burgundy: #5C1A1A;
@@ -15,6 +15,7 @@
     --espresso: #0F0500;
     --gold: #C9A84C;
     --shadow-gold: #8B6914;
+    --sepia: #704214;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -22,10 +23,15 @@
     color: var(--cream);
     font-family: 'Special Elite', cursive;
     min-height: 100vh;
+    padding: 20px;
+  }
+
+  /* ── LOGIN STATE ── */
+  .login-wrap {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    min-height: 100vh;
   }
   .portal-frame {
     border: 2px solid var(--gold);
@@ -36,142 +42,252 @@
     position: relative;
   }
   .portal-frame::before, .portal-frame::after {
-    content: '✦';
-    position: absolute;
-    color: var(--gold);
-    font-size: 14px;
+    content: '✦'; position: absolute; color: var(--gold); font-size: 14px;
   }
   .portal-frame::before { top: 10px; left: 50%; transform: translateX(-50%); }
   .portal-frame::after  { bottom: 10px; left: 50%; transform: translateX(-50%); }
   .portal-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.45em;
-    color: var(--gold);
-    text-transform: uppercase;
-    margin-bottom: 12px;
+    font-size: 0.6rem; letter-spacing: 0.45em;
+    color: var(--gold); text-transform: uppercase; margin-bottom: 12px;
   }
   h1 {
     font-family: 'Playfair Display', serif;
-    font-size: 2.2rem;
-    font-style: italic;
-    color: var(--cream);
-    margin-bottom: 8px;
+    font-size: 2.2rem; font-style: italic;
+    color: var(--cream); margin-bottom: 8px;
   }
   .sub {
-    font-family: 'Special Elite', cursive;
-    font-size: 0.75rem;
-    color: var(--parchment);
-    margin-bottom: 36px;
-    letter-spacing: 0.05em;
+    font-size: 0.75rem; color: var(--parchment);
+    margin-bottom: 36px; letter-spacing: 0.05em;
   }
   .divider {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 28px;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 28px;
   }
   .divider::before, .divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
+    content: ''; flex: 1; height: 1px;
     background: linear-gradient(90deg, transparent, var(--gold), transparent);
   }
   .divider span { color: var(--gold); font-size: 0.9rem; }
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 20px;
-    text-align: left;
-  }
-  label {
-    font-size: 0.6rem;
-    letter-spacing: 0.35em;
-    color: var(--gold);
-    text-transform: uppercase;
-  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; text-align: left; }
+  label { font-size: 0.6rem; letter-spacing: 0.35em; color: var(--gold); text-transform: uppercase; }
   input[type="password"] {
     background: rgba(245,230,208,0.05);
     border: 1px solid rgba(201,168,76,0.3);
-    color: var(--cream);
-    font-family: 'Special Elite', cursive;
-    font-size: 1rem;
-    padding: 12px 16px;
-    outline: none;
-    width: 100%;
-    transition: border-color 0.3s ease;
-    letter-spacing: 0.2em;
+    color: var(--cream); font-family: 'Special Elite', cursive;
+    font-size: 1rem; padding: 12px 16px; outline: none; width: 100%;
+    transition: border-color 0.3s ease; letter-spacing: 0.2em;
   }
   input[type="password"]:focus { border-color: var(--gold); }
-  .submit-btn {
-    background: transparent;
-    border: 1px solid var(--gold);
-    color: var(--gold);
-    font-family: 'Special Elite', cursive;
-    font-size: 0.7rem;
-    letter-spacing: 0.4em;
-    text-transform: uppercase;
-    padding: 14px 36px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    width: 100%;
-    position: relative;
-    overflow: hidden;
+  .btn {
+    background: transparent; border: 1px solid var(--gold);
+    color: var(--gold); font-family: 'Special Elite', cursive;
+    font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase;
+    padding: 14px 36px; cursor: pointer; transition: all 0.3s ease;
+    width: 100%; position: relative; overflow: hidden;
   }
-  .submit-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--gold);
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
+  .btn::before {
+    content: ''; position: absolute; inset: 0;
+    background: var(--gold); transform: translateX(-100%); transition: transform 0.3s ease;
   }
-  .submit-btn:hover { color: var(--espresso); }
-  .submit-btn:hover::before { transform: translateX(0); }
-  .submit-btn span { position: relative; z-index: 1; }
+  .btn:hover { color: var(--espresso); }
+  .btn:hover::before { transform: translateX(0); }
+  .btn span { position: relative; z-index: 1; }
   .error {
-    background: rgba(92,26,26,0.4);
-    border: 1px solid rgba(201,168,76,0.2);
-    color: var(--parchment);
-    font-size: 0.75rem;
-    padding: 10px 14px;
-    margin-bottom: 16px;
-    letter-spacing: 0.05em;
+    background: rgba(92,26,26,0.4); border: 1px solid rgba(201,168,76,0.2);
+    color: var(--parchment); font-size: 0.75rem;
+    padding: 10px 14px; margin-bottom: 16px; letter-spacing: 0.05em;
   }
   .back-link {
-    display: block;
-    margin-top: 24px;
-    font-size: 0.6rem;
-    letter-spacing: 0.3em;
-    color: var(--gold);
-    text-transform: uppercase;
-    text-decoration: none;
-    opacity: 0.5;
-    transition: opacity 0.2s;
+    display: block; margin-top: 24px; font-size: 0.6rem;
+    letter-spacing: 0.3em; color: var(--gold); text-transform: uppercase;
+    text-decoration: none; opacity: 0.5; transition: opacity 0.2s;
   }
   .back-link:hover { opacity: 1; }
+
+  /* ── ADMIN PANEL ── */
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+    padding-bottom: 20px; margin-bottom: 40px;
+  }
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem; font-style: italic; color: var(--gold);
+  }
+  .panel-sub { font-size: 0.6rem; letter-spacing: 0.3em; color: var(--parchment); margin-top: 3px; }
+  .logout-btn {
+    background: transparent; border: 1px solid rgba(201,168,76,0.3);
+    color: var(--parchment); font-family: 'Special Elite', cursive;
+    font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase;
+    padding: 8px 18px; cursor: pointer; text-decoration: none;
+    transition: all 0.2s ease; display: inline-block;
+  }
+  .logout-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  .messages-list { display: flex; flex-direction: column; gap: 20px; max-width: 760px; margin: 0 auto; }
+
+  .msg-card {
+    background: rgba(245,230,208,0.03);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-left: 3px solid var(--gold);
+    padding: 20px 24px;
+  }
+  .msg-meta {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;
+  }
+  .msg-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem; font-style: italic; color: var(--gold);
+  }
+  .msg-city { font-size: 0.75rem; color: var(--parchment); }
+  .msg-date { font-size: 0.55rem; letter-spacing: 0.15em; color: var(--parchment); opacity: 0.5; margin-left: auto; }
+  .msg-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.05rem; line-height: 1.65; color: var(--aged-cream); margin-bottom: 14px;
+  }
+  .msg-reactions { font-size: 0.65rem; color: var(--parchment); margin-bottom: 14px; letter-spacing: 0.1em; }
+
+  .reply-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .reply-item {
+    padding: 10px 14px;
+    background: rgba(245,230,208,0.03);
+    border-left: 2px solid rgba(201,168,76,0.3);
+  }
+  .reply-author { font-size: 0.7rem; font-style: italic; color: var(--gold); margin-bottom: 3px; }
+  .reply-text { font-family: 'Cormorant Garamond', serif; font-size: 0.95rem; color: var(--aged-cream); }
+
+  .reply-form { display: flex; gap: 10px; align-items: flex-start; }
+  .reply-form textarea {
+    flex: 1; background: rgba(245,230,208,0.05);
+    border: 1px solid rgba(201,168,76,0.25);
+    color: var(--cream); font-family: 'Special Elite', cursive;
+    font-size: 0.85rem; padding: 10px 14px; outline: none; resize: none;
+    min-height: 60px; transition: border-color 0.3s ease;
+  }
+  .reply-form textarea:focus { border-color: var(--gold); }
+  .reply-form button {
+    background: transparent; border: 1px solid var(--gold); color: var(--gold);
+    font-family: 'Special Elite', cursive; font-size: 0.6rem;
+    letter-spacing: 0.3em; text-transform: uppercase; padding: 10px 18px;
+    cursor: pointer; white-space: nowrap; transition: all 0.2s ease;
+  }
+  .reply-form button:hover { background: var(--gold); color: var(--espresso); }
+
+  .empty { text-align: center; color: var(--parchment); font-size: 0.85rem; padding: 60px 0; opacity: 0.5; }
+  .loading { text-align: center; color: var(--gold); font-size: 0.65rem; letter-spacing: 0.3em; padding: 60px 0; }
 </style>
 </head>
 <body>
-<div class="portal-frame">
-  <div class="portal-label">Staff Entrance</div>
-  <h1>Grandma's Portal</h1>
-  <p class="sub">For Chizzy's eyes only</p>
-  <div class="divider"><span>✦</span></div>
 
-  {% if error %}
-  <div class="error">{{ error }}</div>
-  {% endif %}
-
-  <form method="POST" action="/admin">
-    <div class="form-group">
-      <label>Secret Word</label>
-      <input type="password" name="password" placeholder="••••••••" autofocus required>
-    </div>
-    <button type="submit" class="submit-btn"><span>✦ Enter</span></button>
-  </form>
-
-  <a href="/" class="back-link">← back to the party</a>
+{% if not logged_in %}
+<!-- ── LOGIN ── -->
+<div class="login-wrap">
+  <div class="portal-frame">
+    <div class="portal-label">Staff Entrance</div>
+    <h1>Grandma's Portal</h1>
+    <p class="sub">For Chizzy's eyes only</p>
+    <div class="divider"><span>✦</span></div>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="POST" action="/admin">
+      <div class="form-group">
+        <label>Secret Word</label>
+        <input type="password" name="password" placeholder="••••••••" autofocus required>
+      </div>
+      <button type="submit" class="btn"><span>✦ Enter</span></button>
+    </form>
+    <a href="/" class="back-link">← back to the party</a>
+  </div>
 </div>
+
+{% else %}
+<!-- ── ADMIN PANEL ── -->
+<div class="panel-header">
+  <div>
+    <div class="panel-title">Chizzy's Guestbook ✦</div>
+    <div class="panel-sub">Read messages · Leave replies</div>
+  </div>
+  <a href="/admin/logout" class="logout-btn">Sign out → Main Site</a>
+</div>
+
+<div class="messages-list" id="messagesList">
+  <div class="loading">Loading messages...</div>
+</div>
+
+<script>
+  async function loadMessages() {
+    const list = document.getElementById('messagesList');
+    try {
+      const res = await fetch('/api/messages');
+      if (!res.ok) throw new Error('Failed to load');
+      const messages = await res.json();
+      list.innerHTML = '';
+      if (!messages.length) {
+        list.innerHTML = '<div class="empty">No messages yet.</div>';
+        return;
+      }
+      messages.forEach(msg => renderMessage(msg));
+    } catch (e) {
+      list.innerHTML = '<div class="empty">Could not load messages.</div>';
+    }
+  }
+
+  function renderMessage(msg) {
+    const list = document.getElementById('messagesList');
+    const date = msg.created_at
+      ? new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+
+    const repliesHtml = (msg.replies || []).map(r => `
+      <div class="reply-item">
+        <div class="reply-author">Chizzy ✦</div>
+        <div class="reply-text">${r.content}</div>
+      </div>
+    `).join('');
+
+    const card = document.createElement('div');
+    card.className = 'msg-card';
+    card.id = 'msg-' + msg.id;
+    card.innerHTML = `
+      <div class="msg-meta">
+        <span class="msg-name">${msg.name}</span>
+        ${msg.city ? `<span class="msg-city">· ${msg.city}</span>` : ''}
+        <span class="msg-date">${date}</span>
+      </div>
+      <div class="msg-text">${msg.message}</div>
+      ${msg.reactions ? `<div class="msg-reactions">❤️ ${msg.reactions}</div>` : ''}
+      ${repliesHtml ? `<div class="reply-list">${repliesHtml}</div>` : ''}
+      <div class="reply-form">
+        <textarea id="reply-${msg.id}" placeholder="Reply as Chizzy..."></textarea>
+        <button onclick="submitReply(${msg.id})">✦ Reply</button>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+
+  async function submitReply(id) {
+    const input = document.getElementById('reply-' + id);
+    const content = input.value.trim();
+    if (!content) return;
+    const btn = input.nextElementSibling;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/messages/${id}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      if (!res.ok) throw new Error('Failed');
+      input.value = '';
+      await loadMessages();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  loadMessages();
+</script>
+{% endif %}
+
 </body>
 </html>
