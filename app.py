@@ -1,5 +1,5 @@
 import os
-import libsql_experimental as libsql
+import requests as req
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 
@@ -10,56 +10,90 @@ PHOTOS_DIR = os.path.join(app.static_folder, 'photos')
 os.makedirs(PHOTOS_DIR, exist_ok=True)
 
 
-def get_db_connection():
-    db_url = os.environ.get('TURSO_DATABASE_URL')
-    auth_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+def _turso(statements):
+    """Run one or more SQL statements via Turso HTTP pipeline API."""
+    db_url = os.environ.get('TURSO_DATABASE_URL', '')
     if not db_url:
-        print("Warning: TURSO_DATABASE_URL not set.")
-        return None
-    try:
-        return libsql.connect(database=db_url, auth_token=auth_token)
-    except Exception as e:
-        print(f"Database connection error: {e}")
-        return None
+        raise RuntimeError('TURSO_DATABASE_URL not set')
+    token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    endpoint = db_url.replace('libsql://', 'https://') + '/v2/pipeline'
+
+    pipeline = []
+    for s in statements:
+        entry = {'type': 'execute', 'stmt': {'sql': s['sql']}}
+        if s.get('args'):
+            entry['stmt']['args'] = [_enc(a) for a in s['args']]
+        pipeline.append(entry)
+    pipeline.append({'type': 'close'})
+
+    r = req.post(
+        endpoint,
+        json={'requests': pipeline},
+        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+        timeout=10,
+    )
+    r.raise_for_status()
+
+    results = []
+    for item in r.json()['results'][:-1]:
+        if item['type'] == 'error':
+            raise RuntimeError(item['error']['message'])
+        res = item['response']['result']
+        cols = [c['name'] for c in res['cols']]
+        rows = [_dec(cols, row) for row in res['rows']]
+        results.append({'rows': rows, 'last_insert_rowid': res.get('last_insert_rowid')})
+    return results
 
 
-def row_to_dict(cursor, row):
-    if row is None:
-        return None
-    return {d[0]: v for d, v in zip(cursor.description, row)}
+def _enc(v):
+    if v is None:
+        return {'type': 'null', 'value': None}
+    if isinstance(v, int):
+        return {'type': 'integer', 'value': str(v)}
+    if isinstance(v, float):
+        return {'type': 'float', 'value': str(v)}
+    return {'type': 'text', 'value': str(v)}
 
 
-def rows_to_dicts(cursor, rows):
-    cols = [d[0] for d in cursor.description]
-    return [dict(zip(cols, row)) for row in rows]
+def _dec(cols, row):
+    d = {}
+    for i, col in enumerate(cols):
+        cell = row[i]
+        if cell['type'] == 'null':
+            d[col] = None
+        elif cell['type'] == 'integer':
+            d[col] = int(cell['value'])
+        elif cell['type'] == 'float':
+            d[col] = float(cell['value'])
+        else:
+            d[col] = cell['value']
+    return d
+
+
+def db(sql, args=None):
+    return _turso([{'sql': sql, 'args': args or []}])[0]
 
 
 def init_db():
-    conn = get_db_connection()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS chizzy_messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    city TEXT,
-                    message TEXT NOT NULL,
-                    reactions INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS chizzy_replies (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    message_id INTEGER REFERENCES chizzy_messages(id) ON DELETE CASCADE,
-                    content TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            conn.commit()
-        finally:
-            conn.close()
+    try:
+        _turso([
+            {'sql': '''CREATE TABLE IF NOT EXISTS chizzy_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                city TEXT,
+                message TEXT NOT NULL,
+                reactions INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )'''},
+            {'sql': '''CREATE TABLE IF NOT EXISTS chizzy_replies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id INTEGER REFERENCES chizzy_messages(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )'''},
+        ])
+    except Exception as e:
+        print(f"DB init skipped: {e}")
 
 
 with app.app_context():
@@ -96,13 +130,7 @@ def get_photos():
 
 @app.route('/api/messages', methods=['GET', 'POST'])
 def handle_messages():
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database not configured"}), 500
-
     try:
-        cur = conn.cursor()
-
         if request.method == 'POST':
             data = request.json
             name = data.get('name')
@@ -112,68 +140,51 @@ def handle_messages():
             if not name or not message:
                 return jsonify({"error": "Name and message are required"}), 400
 
-            cur.execute(
+            result = db(
                 "INSERT INTO chizzy_messages (name, city, message) VALUES (?, ?, ?) RETURNING *;",
-                (name, city, message)
+                [name, city, message]
             )
-            new_msg = row_to_dict(cur, cur.fetchone())
-            conn.commit()
-            return jsonify(new_msg), 201
+            return jsonify(result['rows'][0]), 201
 
-        elif request.method == 'GET':
-            cur.execute("SELECT * FROM chizzy_messages ORDER BY created_at DESC;")
-            messages = rows_to_dicts(cur, cur.fetchall())
-            for msg in messages:
-                cur.execute(
-                    "SELECT * FROM chizzy_replies WHERE message_id = ? ORDER BY created_at ASC;",
-                    (msg['id'],)
-                )
-                msg['replies'] = rows_to_dicts(cur, cur.fetchall())
-            return jsonify(messages)
-    finally:
-        conn.close()
+        messages = db("SELECT * FROM chizzy_messages ORDER BY created_at DESC;")['rows']
+        for msg in messages:
+            msg['replies'] = db(
+                "SELECT * FROM chizzy_replies WHERE message_id = ? ORDER BY created_at ASC;",
+                [msg['id']]
+            )['rows']
+        return jsonify(messages)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/messages/<int:message_id>/react', methods=['POST'])
 def react_to_message(message_id):
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database not configured"}), 500
     try:
-        cur = conn.cursor()
-        cur.execute(
+        result = db(
             "UPDATE chizzy_messages SET reactions = reactions + 1 WHERE id = ? RETURNING reactions;",
-            (message_id,)
+            [message_id]
         )
-        row = cur.fetchone()
-        if not row:
+        if not result['rows']:
             return jsonify({"error": "Message not found"}), 404
-        conn.commit()
-        return jsonify({"reactions": row[0]})
-    finally:
-        conn.close()
+        return jsonify({"reactions": result['rows'][0]['reactions']})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/messages/<int:message_id>/replies', methods=['POST'])
 def add_reply(message_id):
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database not configured"}), 500
     try:
         data = request.json
         content = data.get('content', '').strip()
         if not content:
             return jsonify({"error": "Content is required"}), 400
-        cur = conn.cursor()
-        cur.execute(
+        result = db(
             "INSERT INTO chizzy_replies (message_id, content) VALUES (?, ?) RETURNING *;",
-            (message_id, content)
+            [message_id, content]
         )
-        new_reply = row_to_dict(cur, cur.fetchone())
-        conn.commit()
-        return jsonify(new_reply), 201
-    finally:
-        conn.close()
+        return jsonify(result['rows'][0]), 201
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
