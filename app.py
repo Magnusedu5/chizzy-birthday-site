@@ -92,6 +92,12 @@ def init_db():
                 content TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )'''},
+            {'sql': '''CREATE TABLE IF NOT EXISTS chizzy_reactions (
+                message_id INTEGER NOT NULL REFERENCES chizzy_messages(id) ON DELETE CASCADE,
+                emoji TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (message_id, emoji)
+            )'''},
         ])
     except Exception as e:
         print(f"DB init skipped: {e}")
@@ -170,23 +176,45 @@ def handle_messages():
                 "SELECT * FROM chizzy_replies WHERE message_id = ? ORDER BY created_at ASC;",
                 [msg['id']]
             )['rows']
+            reactions = db(
+                "SELECT emoji, count FROM chizzy_reactions WHERE message_id = ? AND count > 0;",
+                [msg['id']]
+            )['rows']
+            msg['emoji_reactions'] = {r['emoji']: r['count'] for r in reactions}
         return jsonify(messages)
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
 
 
+ALLOWED_EMOJIS = {'❤️', '😂', '🎉', '🥰', '👏', '🔥'}
+
 @app.route('/api/messages/<int:message_id>/react', methods=['POST'])
 def react_to_message(message_id):
+    if not session.get('admin'):
+        return jsonify({"error": "Unauthorised"}), 403
     try:
         data = request.json or {}
+        emoji = data.get('emoji', '')
+        if emoji not in ALLOWED_EMOJIS:
+            return jsonify({"error": "Invalid emoji"}), 400
         if data.get('remove'):
-            sql = "UPDATE chizzy_messages SET reactions = MAX(0, reactions - 1) WHERE id = ? RETURNING reactions;"
+            db(
+                "INSERT INTO chizzy_reactions (message_id, emoji, count) VALUES (?, ?, 0) "
+                "ON CONFLICT (message_id, emoji) DO UPDATE SET count = MAX(0, count - 1);",
+                [message_id, emoji]
+            )
         else:
-            sql = "UPDATE chizzy_messages SET reactions = reactions + 1 WHERE id = ? RETURNING reactions;"
-        result = db(sql, [message_id])
-        if not result['rows']:
-            return jsonify({"error": "Message not found"}), 404
-        return jsonify({"reactions": result['rows'][0]['reactions']})
+            db(
+                "INSERT INTO chizzy_reactions (message_id, emoji, count) VALUES (?, ?, 1) "
+                "ON CONFLICT (message_id, emoji) DO UPDATE SET count = count + 1;",
+                [message_id, emoji]
+            )
+        result = db(
+            "SELECT count FROM chizzy_reactions WHERE message_id = ? AND emoji = ?;",
+            [message_id, emoji]
+        )
+        count = result['rows'][0]['count'] if result['rows'] else 0
+        return jsonify({"emoji": emoji, "count": count})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
 

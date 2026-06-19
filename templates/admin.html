@@ -172,6 +172,18 @@
   }
   .reply-form button:hover { background: var(--gold); color: var(--espresso); }
 
+  .emoji-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .emoji-btn {
+    background: rgba(245,230,208,0.04); border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 20px; padding: 5px 12px; cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; gap: 5px; transition: all 0.2s ease;
+    color: var(--parchment); font-family: 'Special Elite', cursive; font-size: 0.75rem;
+  }
+  .emoji-btn:hover { border-color: rgba(201,168,76,0.5); background: rgba(245,230,208,0.08); }
+  .emoji-btn.active { border-color: var(--gold); background: rgba(201,168,76,0.12); color: var(--gold); }
+  .emoji-btn .emoji { font-size: 1.1rem; }
+  .emoji-btn .ecount { font-size: 0.7rem; opacity: 0.8; }
+
   .empty { text-align: center; color: var(--parchment); font-size: 0.85rem; padding: 60px 0; opacity: 0.5; }
   .loading { text-align: center; color: var(--gold); font-size: 0.65rem; letter-spacing: 0.3em; padding: 60px 0; }
 </style>
@@ -230,6 +242,8 @@
     }
   }
 
+  const EMOJIS = ['❤️', '😂', '🎉', '🥰', '👏', '🔥'];
+
   function renderMessage(msg) {
     const list = document.getElementById('messagesList');
     const date = msg.created_at
@@ -243,6 +257,15 @@
       </div>
     `).join('');
 
+    const emojiReactions = msg.emoji_reactions || {};
+    const emojiHtml = EMOJIS.map(e => {
+      const count = emojiReactions[e] || 0;
+      const active = count > 0 ? 'active' : '';
+      return `<button class="emoji-btn ${active}" onclick="toggleEmoji(${msg.id}, '${e}', this)">
+        <span class="emoji">${e}</span>${count ? `<span class="ecount">${count}</span>` : ''}
+      </button>`;
+    }).join('');
+
     const card = document.createElement('div');
     card.className = 'msg-card';
     card.id = 'msg-' + msg.id;
@@ -253,7 +276,7 @@
         <span class="msg-date">${date}</span>
       </div>
       <div class="msg-text">${msg.message}</div>
-      ${msg.reactions ? `<div class="msg-reactions">❤️ ${msg.reactions}</div>` : ''}
+      <div class="emoji-row">${emojiHtml}</div>
       ${repliesHtml ? `<div class="reply-list">${repliesHtml}</div>` : ''}
       <div class="reply-form">
         <textarea id="reply-${msg.id}" placeholder="Reply as Chizzy..."></textarea>
@@ -261,6 +284,32 @@
       </div>
     `;
     list.appendChild(card);
+  }
+
+  async function toggleEmoji(id, emoji, btn) {
+    const isActive = btn.classList.contains('active');
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/messages/${id}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji, remove: isActive })
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      btn.classList.toggle('active', data.count > 0);
+      const countEl = btn.querySelector('.ecount');
+      if (data.count > 0) {
+        if (countEl) countEl.textContent = data.count;
+        else btn.insertAdjacentHTML('beforeend', `<span class="ecount">${data.count}</span>`);
+      } else if (countEl) {
+        countEl.remove();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function submitReply(id) {

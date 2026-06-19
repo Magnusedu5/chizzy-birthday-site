@@ -729,38 +729,7 @@
 
   .submit-btn span { position: relative; z-index: 1; }
 
-  /* ===================== ENTRY ACTIONS / REACTIONS / REPLIES ===================== */
-  .entry-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 10px;
-  }
-
-  .reaction-btn {
-    background: transparent;
-    border: 1px solid rgba(201,168,76,0.2);
-    color: var(--parchment);
-    font-family: 'Special Elite', cursive;
-    font-size: 0.75rem;
-    padding: 4px 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border-radius: 2px;
-  }
-  .reaction-btn:hover:not(:disabled) {
-    border-color: rgba(201,168,76,0.5);
-    color: var(--cream);
-  }
-  .reaction-btn.reacted {
-    border-color: var(--gold);
-    color: var(--gold);
-  }
-  .reaction-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-
+  /* ===================== REPLIES / EMOJI REACTIONS ===================== */
   .reply-block {
     margin-top: 10px;
     padding: 10px 14px;
@@ -781,37 +750,24 @@
     line-height: 1.5;
   }
 
-  .admin-reply-link {
-    font-size: 0.6rem;
-    letter-spacing: 0.2em;
-    color: var(--gold);
-    text-transform: uppercase;
-    cursor: pointer;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-  }
-  .admin-reply-link:hover { opacity: 1; }
-
-  .inline-reply-form {
-    display: none;
-    margin-top: 10px;
-    flex-direction: column;
+  .emoji-reactions {
+    display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
   }
-  .inline-reply-form.open { display: flex; }
-  .inline-reply-form textarea {
+  .emoji-pill {
     background: rgba(245,230,208,0.05);
-    border: 1px solid rgba(201,168,76,0.25);
-    color: var(--cream);
-    font-family: 'Special Elite', cursive;
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 20px;
+    padding: 3px 10px;
     font-size: 0.85rem;
-    padding: 10px 14px;
-    outline: none;
-    resize: none;
-    min-height: 70px;
-    transition: border-color 0.3s ease;
+    color: var(--parchment);
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
-  .inline-reply-form textarea:focus { border-color: var(--gold); }
+  .emoji-pill .ecount { font-size: 0.7rem; }
 
   /* ===================== FOOTER ===================== */
   footer {
@@ -1250,9 +1206,6 @@
     el.className = 'entry';
     el.style.opacity = 0;
 
-    const hasReacted = e.id && localStorage.getItem('reacted_' + e.id) ? 'reacted' : '';
-    const reactDisabled = !e.id ? 'disabled' : '';
-
     let repliesHtml = '';
     if (e.replies && e.replies.length > 0) {
       e.replies.forEach(r => {
@@ -1265,14 +1218,19 @@
       });
     }
 
+    let emojiHtml = '';
+    const reactions = e.emoji_reactions || {};
+    const pills = Object.entries(reactions).filter(([, c]) => c > 0)
+      .map(([emoji, count]) => `<span class="emoji-pill"><span>${emoji}</span><span class="ecount">${count}</span></span>`)
+      .join('');
+    if (pills) emojiHtml = `<div class="emoji-reactions">${pills}</div>`;
+
     el.innerHTML = `
       <div class="entry-name">${e.name}${e.city ? ` · <em style="font-size:0.85rem;color:var(--parchment)">${e.city}</em>` : ''}</div>
       <div class="entry-message">${e.message}</div>
       <div class="entry-date">${e.date}</div>
       ${repliesHtml}
-      <div class="entry-actions">
-        <button class="reaction-btn ${hasReacted}" onclick="reactToMessage(${e.id}, this)" ${reactDisabled}>❤️${e.reactions ? ` <span class="react-count">${e.reactions}</span>` : ''}</button>
-      </div>
+      ${emojiHtml}
     `;
     entriesEl.prepend(el);
     setTimeout(() => el.style.opacity = 1, 10);
@@ -1286,7 +1244,7 @@
       entriesEl.innerHTML = '';
       messages.forEach(msg => {
         const date = new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-        renderEntry({ id: msg.id, name: msg.name, city: msg.city, message: msg.message, date, reactions: msg.reactions, replies: msg.replies });
+        renderEntry({ id: msg.id, name: msg.name, city: msg.city, message: msg.message, date, replies: msg.replies, emoji_reactions: msg.emoji_reactions });
       });
     } catch (error) {
       console.error("Error loading messages:", error);
@@ -1318,46 +1276,6 @@
       console.error("Error submitting message:", error);
     }
   });
-
-  async function reactToMessage(id, btn) {
-    if (!id || btn.disabled) return;
-    const key = 'reacted_' + id;
-    const hasReacted = !!localStorage.getItem(key);
-    btn.disabled = true;
-    try {
-      const res = await fetch(`/api/messages/${id}/react`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ remove: hasReacted })
-      });
-      if (!res.ok) throw new Error('React failed');
-      const data = await res.json();
-      if (hasReacted) {
-        localStorage.removeItem(key);
-        btn.classList.remove('reacted');
-      } else {
-        localStorage.setItem(key, '1');
-        btn.classList.add('reacted');
-      }
-      let countEl = btn.querySelector('.react-count');
-      if (data.reactions > 0) {
-        if (!countEl) {
-          countEl = document.createElement('span');
-          countEl.className = 'react-count';
-          btn.appendChild(document.createTextNode(' '));
-          btn.appendChild(countEl);
-        }
-        countEl.textContent = data.reactions;
-      } else if (countEl) {
-        if (countEl.previousSibling?.nodeType === Node.TEXT_NODE) countEl.previousSibling.remove();
-        countEl.remove();
-      }
-    } catch (err) {
-      console.error('Error reacting:', err);
-    } finally {
-      btn.disabled = false;
-    }
-  }
 
   // Initial Load
   document.addEventListener('DOMContentLoaded', () => {
