@@ -1,55 +1,75 @@
 import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import libsql_experimental as libsql
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-# Ensure the photos directory exists so the app doesn't crash on startup
 PHOTOS_DIR = os.path.join(app.static_folder, 'photos')
 os.makedirs(PHOTOS_DIR, exist_ok=True)
 
-# Database connection helper
+
 def get_db_connection():
-    db_url = os.environ.get('DATABASE_URL')
+    db_url = os.environ.get('TURSO_DATABASE_URL')
+    auth_token = os.environ.get('TURSO_AUTH_TOKEN', '')
     if not db_url:
-        print("Warning: DATABASE_URL not set.")
+        print("Warning: TURSO_DATABASE_URL not set.")
         return None
     try:
-        conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
-        return conn
+        return libsql.connect(database=db_url, auth_token=auth_token)
     except Exception as e:
         print(f"Database connection error: {e}")
         return None
 
-# Initialize the database table
+
+def row_to_dict(cursor, row):
+    if row is None:
+        return None
+    return {d[0]: v for d, v in zip(cursor.description, row)}
+
+
+def rows_to_dicts(cursor, rows):
+    cols = [d[0] for d in cursor.description]
+    return [dict(zip(cols, row)) for row in rows]
+
+
 def init_db():
     conn = get_db_connection()
     if conn:
         try:
-            with conn.cursor() as cur:
-                cur.execute('''
-                    CREATE TABLE IF NOT EXISTS chizzy_messages (
-                        id SERIAL PRIMARY KEY,
-                        name VARCHAR(255) NOT NULL,
-                        city VARCHAR(255),
-                        message TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                ''')
+            cur = conn.cursor()
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS chizzy_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    city TEXT,
+                    message TEXT NOT NULL,
+                    reactions INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS chizzy_replies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id INTEGER REFERENCES chizzy_messages(id) ON DELETE CASCADE,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
             conn.commit()
         finally:
             conn.close()
 
-# Initialize DB on startup
+
 with app.app_context():
     init_db()
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/api/photos', methods=['GET'])
 def get_photos():
@@ -58,11 +78,9 @@ def get_photos():
         valid_image_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
         valid_video_extensions = ('.mp4', '.webm', '.mov')
 
-        # Sort to keep order consistent
         for filename in sorted(os.listdir(PHOTOS_DIR)):
             lower_filename = filename.lower()
-            
-            # Exclude both the background video and the featured intro video from the gallery wall
+
             if lower_filename in ('bg-video.mp4', 'introvid.mp4'):
                 continue
 
@@ -75,6 +93,7 @@ def get_photos():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/api/messages', methods=['GET', 'POST'])
 def handle_messages():
     conn = get_db_connection()
@@ -82,6 +101,8 @@ def handle_messages():
         return jsonify({"error": "Database not configured"}), 500
 
     try:
+        cur = conn.cursor()
+
         if request.method == 'POST':
             data = request.json
             name = data.get('name')
@@ -91,23 +112,69 @@ def handle_messages():
             if not name or not message:
                 return jsonify({"error": "Name and message are required"}), 400
 
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO chizzy_messages (name, city, message) VALUES (%s, %s, %s) RETURNING *;",
-                    (name, city, message)
-                )
-                new_msg = cur.fetchone()
+            cur.execute(
+                "INSERT INTO chizzy_messages (name, city, message) VALUES (?, ?, ?) RETURNING *;",
+                (name, city, message)
+            )
+            new_msg = row_to_dict(cur, cur.fetchone())
             conn.commit()
             return jsonify(new_msg), 201
 
         elif request.method == 'GET':
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM chizzy_messages ORDER BY created_at DESC;")
-                messages = cur.fetchall()
+            cur.execute("SELECT * FROM chizzy_messages ORDER BY created_at DESC;")
+            messages = rows_to_dicts(cur, cur.fetchall())
+            for msg in messages:
+                cur.execute(
+                    "SELECT * FROM chizzy_replies WHERE message_id = ? ORDER BY created_at ASC;",
+                    (msg['id'],)
+                )
+                msg['replies'] = rows_to_dicts(cur, cur.fetchall())
             return jsonify(messages)
     finally:
         conn.close()
 
+
+@app.route('/api/messages/<int:message_id>/react', methods=['POST'])
+def react_to_message(message_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database not configured"}), 500
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE chizzy_messages SET reactions = reactions + 1 WHERE id = ? RETURNING reactions;",
+            (message_id,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Message not found"}), 404
+        conn.commit()
+        return jsonify({"reactions": row[0]})
+    finally:
+        conn.close()
+
+
+@app.route('/api/messages/<int:message_id>/replies', methods=['POST'])
+def add_reply(message_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database not configured"}), 500
+    try:
+        data = request.json
+        content = data.get('content', '').strip()
+        if not content:
+            return jsonify({"error": "Content is required"}), 400
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO chizzy_replies (message_id, content) VALUES (?, ?) RETURNING *;",
+            (message_id, content)
+        )
+        new_reply = row_to_dict(cur, cur.fetchone())
+        conn.commit()
+        return jsonify(new_reply), 201
+    finally:
+        conn.close()
+
+
 if __name__ == '__main__':
-    # Run locally for testing (use python app.py)
     app.run(debug=True, port=5000)

@@ -391,7 +391,7 @@
 
   /* ===================== FEATURED VIDEO ===================== */
   .featured-video-container {
-    max-width: 400px;
+    max-width: 600px;
     margin: 0 auto 60px auto;
     border: 1px solid rgba(201,168,76,0.3);
     padding: 12px;
@@ -400,6 +400,8 @@
   }
   .featured-video {
     width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
     display: block;
     filter: sepia(10%) contrast(1.05);
   }
@@ -727,6 +729,90 @@
 
   .submit-btn span { position: relative; z-index: 1; }
 
+  /* ===================== ENTRY ACTIONS / REACTIONS / REPLIES ===================== */
+  .entry-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .reaction-btn {
+    background: transparent;
+    border: 1px solid rgba(201,168,76,0.2);
+    color: var(--parchment);
+    font-family: 'Special Elite', cursive;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 2px;
+  }
+  .reaction-btn:hover:not(:disabled) {
+    border-color: rgba(201,168,76,0.5);
+    color: var(--cream);
+  }
+  .reaction-btn.reacted {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .reaction-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .reply-block {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-left: 2px solid rgba(201,168,76,0.3);
+    background: rgba(245,230,208,0.03);
+  }
+  .reply-author {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--gold);
+    margin-bottom: 3px;
+  }
+  .reply-content {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.95rem;
+    color: var(--aged-cream);
+    line-height: 1.5;
+  }
+
+  .admin-reply-link {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  .admin-reply-link:hover { opacity: 1; }
+
+  .inline-reply-form {
+    display: none;
+    margin-top: 10px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .inline-reply-form.open { display: flex; }
+  .inline-reply-form textarea {
+    background: rgba(245,230,208,0.05);
+    border: 1px solid rgba(201,168,76,0.25);
+    color: var(--cream);
+    font-family: 'Special Elite', cursive;
+    font-size: 0.85rem;
+    padding: 10px 14px;
+    outline: none;
+    resize: none;
+    min-height: 70px;
+    transition: border-color 0.3s ease;
+  }
+  .inline-reply-form textarea:focus { border-color: var(--gold); }
+
   /* ===================== FOOTER ===================== */
   footer {
     text-align: center;
@@ -943,7 +1029,7 @@
       <div class="card-desc">
         She is 24. The music she listens to is older than most buildings. 
         You will say something about it and she will explain, at length, 
-        why Sade was actually ahead of her time. She is right. That's the annoying part.
+        why Coltrane was actually ahead of his time. She is right. That's the annoying part.
       </div>
     </div>
 
@@ -1163,10 +1249,47 @@
     const el = document.createElement('div');
     el.className = 'entry';
     el.style.opacity = 0; // For animation
+    
+    const isChizzy = sessionStorage.getItem('chizzy_unlocked') === 'true';
+    const hasReacted = e.id && localStorage.getItem('reacted_' + e.id) ? 'reacted' : '';
+    const reactDisabled = !e.id ? 'disabled' : '';
+    
+    let repliesHtml = '';
+    if (e.replies && e.replies.length > 0) {
+      e.replies.forEach(r => {
+        repliesHtml += `
+          <div class="reply-block">
+            <div class="reply-author">Chizzy ✦</div>
+            <div class="reply-content">${r.content}</div>
+          </div>
+        `;
+      });
+    }
+    
+    let adminActions = '';
+    if (isChizzy && e.id) {
+      adminActions = `
+        <span class="admin-reply-link" onclick="toggleReplyForm(${e.id})">Reply</span>
+      `;
+    }
+    
     el.innerHTML = `
       <div class="entry-name">${e.name}${e.city ? ` · <em style="font-size:0.85rem;color:var(--parchment)">${e.city}</em>` : ''}</div>
       <div class="entry-message">${e.message}</div>
       <div class="entry-date">${e.date}</div>
+      
+      ${repliesHtml}
+      
+      <div class="entry-actions">
+        <button class="reaction-btn ${hasReacted}" onclick="reactToMessage(${e.id}, this)" ${reactDisabled}>❤️ <span class="react-count">${e.reactions || 0}</span></button>
+        ${adminActions}
+      </div>
+      
+      ${isChizzy && e.id ? `
+      <div class="inline-reply-form" id="reply-form-${e.id}">
+        <textarea id="reply-input-${e.id}" placeholder="Type your reply, Grandma..."></textarea>
+        <button class="submit-btn" style="padding: 10px 20px; font-size: 0.6rem;" onclick="submitReply(${e.id})"><span>✦ Send Reply</span></button>
+      </div>` : ''}
     `;
     entriesEl.prepend(el);
     setTimeout(() => el.style.opacity = 1, 10); // Fade in
@@ -1180,7 +1303,7 @@
       entriesEl.innerHTML = '';
       messages.forEach(msg => {
         const date = new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-        renderEntry({ name: msg.name, city: msg.city, message: msg.message, date });
+        renderEntry({ id: msg.id, name: msg.name, city: msg.city, message: msg.message, date, reactions: msg.reactions, replies: msg.replies });
       });
     } catch (error) {
       console.error("Error loading messages:", error);
@@ -1196,7 +1319,7 @@
 
     // 1. Optimistic Update: Instantly render the entry on screen
     const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    renderEntry({ name, city, message, date });
+    renderEntry({ id: null, name, city, message, date, reactions: 0, replies: [] });
     
     // 2. Instantly clear the form
     guestbookForm.reset();
@@ -1212,6 +1335,48 @@
       console.error("Error submitting message:", error);
     }
   });
+
+  async function reactToMessage(id, btn) {
+    if (!id || btn.disabled) return;
+    const key = 'reacted_' + id;
+    if (localStorage.getItem(key)) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/messages/${id}/react`, { method: 'POST' });
+      if (!res.ok) throw new Error('React failed');
+      const data = await res.json();
+      localStorage.setItem(key, '1');
+      btn.classList.add('reacted');
+      btn.querySelector('.react-count').textContent = data.reactions;
+    } catch (err) {
+      console.error('Error reacting:', err);
+      btn.disabled = false;
+    }
+  }
+
+  function toggleReplyForm(id) {
+    const form = document.getElementById(`reply-form-${id}`);
+    if (form) form.classList.toggle('open');
+  }
+
+  async function submitReply(id) {
+    const input = document.getElementById(`reply-input-${id}`);
+    const content = input && input.value.trim();
+    if (!content) return;
+    try {
+      const res = await fetch(`/api/messages/${id}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      if (!res.ok) throw new Error('Reply failed');
+      input.value = '';
+      toggleReplyForm(id);
+      await loadMessages();
+    } catch (err) {
+      console.error('Error submitting reply:', err);
+    }
+  }
 
   // Initial Load
   document.addEventListener('DOMContentLoaded', () => {
