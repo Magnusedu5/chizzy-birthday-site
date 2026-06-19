@@ -1339,24 +1339,39 @@
   async function reactToMessage(id, btn) {
     if (!id || btn.disabled) return;
     const key = 'reacted_' + id;
-    if (localStorage.getItem(key)) return;
+    const hasReacted = !!localStorage.getItem(key);
     btn.disabled = true;
     try {
-      const res = await fetch(`/api/messages/${id}/react`, { method: 'POST' });
+      const res = await fetch(`/api/messages/${id}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remove: hasReacted })
+      });
       if (!res.ok) throw new Error('React failed');
       const data = await res.json();
-      localStorage.setItem(key, '1');
-      btn.classList.add('reacted');
-      let countEl = btn.querySelector('.react-count');
-      if (!countEl) {
-        countEl = document.createElement('span');
-        countEl.className = 'react-count';
-        btn.appendChild(document.createTextNode(' '));
-        btn.appendChild(countEl);
+      if (hasReacted) {
+        localStorage.removeItem(key);
+        btn.classList.remove('reacted');
+      } else {
+        localStorage.setItem(key, '1');
+        btn.classList.add('reacted');
       }
-      countEl.textContent = data.reactions;
+      let countEl = btn.querySelector('.react-count');
+      if (data.reactions > 0) {
+        if (!countEl) {
+          countEl = document.createElement('span');
+          countEl.className = 'react-count';
+          btn.appendChild(document.createTextNode(' '));
+          btn.appendChild(countEl);
+        }
+        countEl.textContent = data.reactions;
+      } else if (countEl) {
+        if (countEl.previousSibling?.nodeType === Node.TEXT_NODE) countEl.previousSibling.remove();
+        countEl.remove();
+      }
     } catch (err) {
       console.error('Error reacting:', err);
+    } finally {
       btn.disabled = false;
     }
   }

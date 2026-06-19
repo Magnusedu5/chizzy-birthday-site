@@ -177,10 +177,12 @@ def handle_messages():
 @app.route('/api/messages/<int:message_id>/react', methods=['POST'])
 def react_to_message(message_id):
     try:
-        result = db(
-            "UPDATE chizzy_messages SET reactions = reactions + 1 WHERE id = ? RETURNING reactions;",
-            [message_id]
-        )
+        data = request.json or {}
+        if data.get('remove'):
+            sql = "UPDATE chizzy_messages SET reactions = MAX(0, reactions - 1) WHERE id = ? RETURNING reactions;"
+        else:
+            sql = "UPDATE chizzy_messages SET reactions = reactions + 1 WHERE id = ? RETURNING reactions;"
+        result = db(sql, [message_id])
         if not result['rows']:
             return jsonify({"error": "Message not found"}), 404
         return jsonify({"reactions": result['rows'][0]['reactions']})
