@@ -1,4 +1,5 @@
 import os
+import time
 import requests as req
 from flask import Flask, jsonify, request, render_template, session, redirect
 from flask_cors import CORS
@@ -106,6 +107,12 @@ def init_db():
 with app.app_context():
     init_db()
 
+_messages_cache = {'data': None, 'ts': 0}
+_CACHE_TTL = 60
+
+def _invalidate_cache():
+    _messages_cache['data'] = None
+
 
 @app.route('/')
 def index():
@@ -127,6 +134,11 @@ def admin():
 def admin_logout():
     session.pop('admin', None)
     return redirect('/')
+
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"})
 
 
 @app.route('/api/photos', methods=['GET'])
@@ -168,7 +180,12 @@ def handle_messages():
                 "INSERT INTO chizzy_messages (name, city, message) VALUES (?, ?, ?) RETURNING *;",
                 [name, city, message]
             )
+            _invalidate_cache()
             return jsonify(result['rows'][0]), 201
+
+        now = time.time()
+        if _messages_cache['data'] is not None and now - _messages_cache['ts'] < _CACHE_TTL:
+            return jsonify(_messages_cache['data'])
 
         messages = db("SELECT * FROM chizzy_messages ORDER BY created_at DESC;")['rows']
         for msg in messages:
@@ -181,6 +198,8 @@ def handle_messages():
                 [msg['id']]
             )['rows']
             msg['emoji_reactions'] = {r['emoji']: r['count'] for r in reactions}
+        _messages_cache['data'] = messages
+        _messages_cache['ts'] = now
         return jsonify(messages)
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
@@ -214,6 +233,7 @@ def react_to_message(message_id):
             [message_id, emoji]
         )
         count = result['rows'][0]['count'] if result['rows'] else 0
+        _invalidate_cache()
         return jsonify({"emoji": emoji, "count": count})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
@@ -230,6 +250,7 @@ def add_reply(message_id):
             "INSERT INTO chizzy_replies (message_id, content) VALUES (?, ?) RETURNING *;",
             [message_id, content]
         )
+        _invalidate_cache()
         return jsonify(result['rows'][0]), 201
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
